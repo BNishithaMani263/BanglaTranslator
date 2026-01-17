@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bangla to English Translator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <header class="sticky-header">
+        <div class="container">
+            <h1 class="display-4">Bangla to English Translator</h1>
+            <p class="lead">Transform Bangla text, images, PDFs, or websites into English with advanced search.</p>
+        </div>
+    </header>
+    <div class="container mt-5">
+        {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card shadow-sm animate-card">
+                    <div class="card-body">
+                        <h2 class="card-title h5 mb-4">Translate Text or File</h2>
+                        <form method="POST" action="/web_translate" enctype="multipart/form-data" id="translateForm">
+                            <div class="mb-3">
+                                <label for="text" class="form-label">Enter Bangla Text</label>
+                                <textarea id="text" name="text" rows="5" class="form-control" placeholder="Enter Bangla text here...">{{ text or '' }}</textarea>
+                                <div class="form-text">Enter Bangla text to translate into English.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="file" class="form-label">Upload Image or PDF</label>
+                                <input type="file" id="file" name="file" accept=".png,.jpg,.jpeg,.pdf" class="form-control">
+                                <div class="form-text">Upload an image or PDF containing Bangla text.</div>
+                            </div>
+                            <button type="submit" id="translateBtn" class="btn btn-primary w-100">Translate</button>
+                        </form>
+                        <div class="loading mt-3 text-center d-none" id="loading1">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2">Translating... This may take up to 3 minutes.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm animate-card">
+                    <div class="card-body">
+                        <h2 class="card-title h5 mb-4">Crawl and Translate Website</h2>
+                        <form method="POST" action="/crawl_and_translate" id="crawlForm">
+                            <div class="mb-3">
+                                <label for="url" class="form-label">Enter Website URL</label>
+                                <input type="url" id="url" name="url" class="form-control" placeholder="https://www.prothomalo.com/politics/btyc10o9d6" value="{{ url or '' }}">
+                                <div class="form-text">Enter a specific Bangladeshi newspaper article URL.</div>
+                            </div>
+                            <button type="submit" id="crawlBtn" class="btn btn-primary w-100">Crawl and Translate</button>
+                        </form>
+                        <div class="loading mt-3 text-center d-none" id="loading2">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2">Crawling and Translating <span id="currentUrl">{{ url or 'page' }}</span>...</p>
+                            <p class="form-text">This may take up to 15 minutes. <button id="cancelBtn" class="btn btn-danger btn-sm mt-2" onclick="cancelCrawl()">Cancel</button></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="card shadow-sm animate-card" data-rendered="results">
+                    <div class="card-body">
+                        <h2 class="card-title h5 mb-4">Results</h2>
+                        {% if extracted_text %}
+                        <div class="mb-4" data-section="extracted_text">
+                            <h3 class="h6">Extracted Bangla Text</h3>
+                            <p class="text-muted">{{ extracted_text }}</p>
+                        </div>
+                        {% endif %}
+                        {% if translated_text %}
+                        <div class="mb-4" data-section="translated_text">
+                            <h3 class="h6">Translated English Text</h3>
+                            <p class="text-muted" data-content="{{ translated_text[:50] | e }}">{{ translated_text | safe }}</p>
+                        </div>
+                        {% endif %}
+                        <div class="mt-4" data-section="search_form">
+                            <h3 class="h6">Search Translated Text</h3>
+                            <form method="POST" action="/search" id="searchForm">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-6">
+                                        <label for="keyword" class="form-label">Keyword</label>
+                                        <input type="text" id="keyword" name="keyword" class="form-control" placeholder="Sheikh Hasina" value="{{ keyword or '' }}">
+                                        <div class="form-text">Search for terms (e.g., Prime Minister's name).</div>
+                                        {% if suggestions %}
+                                        <div class="form-text text-info">
+                                            Did you mean: 
+                                            {% for suggestion in suggestions %}
+                                            <a href="#" onclick="document.getElementById('keyword').value='{{ suggestion }}'; document.getElementById('searchForm').submit();">{{ suggestion }}</a>{% if not loop.last %}, {% endif %}
+                                            {% endfor %}?
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="context_size" class="form-label">Context Size</label>
+                                        <select id="context_size" name="context_size" class="form-select">
+                                            {% for size in [1, 2, 3, 4, 5] %}
+                                            <option value="{{ size }}" {% if context_size == size %}selected{% endif %}>{{ size }} Sentence(s)</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-primary w-100">Search</button>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="page" value="{{ current_page or '1' }}">
+                                <input type="hidden" name="cache_key" value="{{ cache_key or '' }}">
+                            </form>
+                            <div class="loading mt-3 text-center d-none" id="loadingSearch">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2">Searching...</p>
+                            </div>
+                        </div>
+                        <div class="mt-4" data-section="search_results" data-results-count="{{ search_results | length }}">
+                            <h3 class="h6">Search Results for "{{ keyword or 'No Keyword' }}"</h3>
+                            {% if search_results %}
+                            {% for result in search_results %}
+                            <div class="search-result card p-3 mb-3 animate-result" id="result-{{ result.id }}" data-result-id="{{ result.id }}">
+                                <p class="highlight-text" data-keyword="{{ keyword }}">{{ result.context | safe }}</p>
+                                <p class="text-muted small">Match Score: {{ result.score }}%</p>
+                                <a href="#result-{{ result.id }}" class="text-primary text-decoration-underline">Jump to Result</a>
+                            </div>
+                            {% endfor %}
+                            {% if total_pages > 1 %}
+                            <nav aria-label="Search results pagination">
+                                <ul class="pagination justify-content-center">
+                                    <li class="page-item {% if current_page <= 1 %}disabled{% endif %}">
+                                        <a class="page-link" href="#" onclick="goToPage('{{ (current_page - 1) | int }}')">Previous</a>
+                                    </li>
+                                    {% for p in range((current_page - 1) | max(1), (current_page + 2) | min(total_pages + 1)) %}
+                                    <li class="page-item {% if p == current_page %}active{% endif %}">
+                                        <a class="page-link" href="#" onclick="goToPage('{{ p | int }}')">{{ p }}</a>
+                                    </li>
+                                    {% endfor %}
+                                    <li class="page-item {% if current_page >= total_pages %}disabled{% endif %}">
+                                        <a class="page-link" href="#" onclick="goToPage('{{ (current_page + 1) | int }}')">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                            {% else %}
+                            <p class="text-muted mt-3">No more results found.</p>
+                            {% endif %}
+                            {% else %}
+                            <p class="text-muted mt-3" data-no-results="true">No results found for "{{ keyword or 'No Keyword' }}". Try a different keyword or check suggestions.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="footer mt-5">
+        <div class="container text-center">
+            <p class="text-light">Developed by B Nishitha Mani -an aspiring machine learning engineer | © 2025</p>
+        </div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
